@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('bids', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('auction_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->decimal('amount', 15, 2); // Teklif miktarı
+            $table->boolean('is_auto_bid')->default(false); 
+
             $table->timestamps();
         });
     }

@@ -13,84 +13,128 @@ defineProps({
 <template>
     <Head title="Açık Artırma Pazaryeri" />
 
-    <div class="min-h-screen bg-gray-100">
-        <nav class="bg-white shadow">
+    <div class="min-h-screen bg-gray-50">
+        <nav class="bg-white shadow-sm border-b sticky top-0 z-50">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
+                <div class="flex justify-between h-20">
                     <div class="flex items-center">
-                        <h1 class="text-2xl font-bold text-indigo-600">AçıkArtırma</h1>
+                        <Link href="/" class="text-2xl font-black text-indigo-600 tracking-tighter italic">
+                            AçıkArtırma
+                        </Link>
                     </div>
                     <div class="flex items-center" v-if="canLogin">
-                        <Link v-if="$page.props.auth.user" :href="route('dashboard')" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md font-medium">Panelim</Link>
+                        <Link v-if="$page.props.auth.user" :href="route('dashboard')" class="text-gray-700 hover:text-indigo-600 px-4 py-2 rounded-xl font-bold text-sm transition">
+                            Panelim
+                        </Link>
                         <template v-else>
-                            <Link :href="route('login')" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md font-medium">Giriş Yap</Link>
-                            <Link v-if="canRegister" :href="route('register')" class="ml-4 bg-indigo-600 text-white px-4 py-2 rounded-md font-medium hover:bg-indigo-700">Kayıt Ol</Link>
+                            <Link :href="route('login')" class="text-gray-700 hover:text-indigo-600 px-4 py-2 rounded-xl font-bold text-sm transition">
+                                Giriş Yap
+                            </Link>
+                            <Link v-if="canRegister" :href="route('register')" class="ml-4 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition">
+                                Kayıt Ol
+                            </Link>
                         </template>
                     </div>
                 </div>
             </div>
         </nav>
 
-        <div class="bg-indigo-700 py-16 text-center text-white">
-            <h2 class="text-4xl font-extrabold tracking-tight sm:text-5xl">Aradığın Ürüne Kendi Fiyatını Belirle</h2>
-            <p class="mt-4 text-lg">Yüzlerce mağazadan binlerce ürün seni bekliyor. Teklif ver, kazan!</p>
+        <div class="bg-indigo-700 py-24 text-center text-white relative overflow-hidden">
+            <div class="relative z-10 px-4">
+                <h2 class="text-4xl font-black tracking-tight sm:text-6xl mb-6">Aradığın Ürüne Kendi Fiyatını Belirle</h2>
+                <p class="text-lg text-indigo-100 max-w-2xl mx-auto font-medium">
+                    Yüzlerce mağazadan binlerce antika, teknoloji ve koleksiyon ürünü seni bekliyor. Hemen teklif ver!
+                </p>
+            </div>
+            <div class="absolute -top-24 -right-24 w-96 h-96 bg-indigo-600 rounded-full blur-3xl opacity-50"></div>
+            <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-30"></div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-            <h3 class="text-xl font-bold text-gray-900 mb-4">Kategoriler</h3>
-            <div class="flex space-x-4 overflow-x-auto pb-4">
-                <div v-for="category in categories" :key="category.id" class="px-6 py-3 bg-white rounded-full shadow-sm border border-gray-200 text-gray-700 font-medium whitespace-nowrap hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer transition">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+            <h3 class="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Kategoriler</h3>
+            <div class="flex space-x-4 overflow-x-auto pb-6 scrollbar-hide">
+                <div v-for="category in categories" :key="category.id" 
+                     class="px-8 py-3.5 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-700 font-bold whitespace-nowrap hover:bg-indigo-600 hover:text-white cursor-pointer transition-all duration-300">
                     {{ category.name }}
                 </div>
             </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-            <h3 class="text-xl font-bold text-gray-900 mb-6">Öne Çıkan Açık Artırmalar</h3>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+            <div class="flex items-center gap-3 mb-10">
+                <div class="h-10 w-2 bg-indigo-600 rounded-full"></div>
+                <h3 class="text-3xl font-black text-gray-900 tracking-tight">Öne Çıkan Açık Artırmalar</h3>
+            </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div v-for="auction in auctions" :key="auction.id" class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition border border-gray-100">
-                    <div class="h-48 bg-gray-200 flex items-center justify-center">
-                        <span class="text-gray-400">Görsel Yok</span>
-                    </div>
-                    
-                    <div class="p-4">
-                        <p class="text-xs text-indigo-600 font-semibold mb-1">{{ auction.product.category.name }}</p>
-                        <h4 class="text-lg font-bold text-gray-900 truncate">{{ auction.product.title }}</h4>
-                        <p class="text-sm text-gray-500 mt-1 mb-4 truncate">{{ auction.product.shop.store_name }}</p>
-                        
-                        <div class="flex justify-between items-end border-t pt-4">
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase">Şu Anki Fiyat</p>
-                                <p class="text-xl font-black text-gray-900">₺{{ auction.current_price }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div v-for="auction in auctions" :key="auction.id">
+                    <div v-if="auction && auction.product" class="bg-white rounded-[2rem] shadow-sm overflow-hidden hover:shadow-2xl transition-all duration-500 border border-gray-100 group">
+                        <div class="h-60 overflow-hidden relative">
+                            <img v-if="auction.product.cover_image" 
+                                 :src="'/storage/' + auction.product.cover_image.image_path" 
+                                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                            <div v-else class="h-full w-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-xs uppercase tracking-widest">Görsel Yok</div>
+                            
+                            <div class="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white text-[10px] px-4 py-2 rounded-full font-black tracking-widest">
+                                02G : 14S : 45D
                             </div>
-                            <button class="bg-gray-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-800 transition">İncele</button>
+                        </div>
+                        
+                        <div class="p-7">
+                            <div class="flex justify-between items-center mb-3">
+                                <p class="text-[10px] text-indigo-600 font-black uppercase tracking-[0.15em]">{{ auction.product.category?.name || 'Genel' }}</p>
+                                <span class="bg-purple-100 text-purple-700 text-[9px] px-2 py-1 rounded-md font-black uppercase">İHALE</span>
+                            </div>
+                            <h4 class="text-lg font-bold text-gray-900 truncate mb-1">{{ auction.product.title }}</h4>
+                            <p class="text-xs text-gray-400 mb-6 font-medium">Satıcı: {{ auction.product.shop?.store_name || 'Mağaza Bilgisi Yok' }}</p>
+                            
+                            <div class="flex justify-between items-center border-t border-gray-50 pt-6">
+                                <div>
+                                    <p class="text-[10px] text-gray-400 uppercase font-black tracking-tighter mb-1">En Yüksek Teklif</p>
+                                    <p class="text-2xl font-black text-gray-900 tracking-tight">₺{{ auction.current_price }}</p>
+                                </div>
+                                <Link :href="route('product.show', auction.product.id)" 
+                                      class="bg-gray-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-600 transition-all shadow-lg active:scale-95 uppercase">
+                                    Teklif Ver
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pb-20">
-            <h3 class="text-xl font-bold text-gray-900 mb-6">Hemen Alınabilir Ürünler</h3>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 pb-24">
+            <div class="flex items-center gap-3 mb-10">
+                <div class="h-10 w-2 bg-green-500 rounded-full"></div>
+                <h3 class="text-3xl font-black text-gray-900 tracking-tight">Hemen Alınabilir Ürünler</h3>
+            </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div v-for="product in products" :key="'prod-'+product.id" class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition border border-gray-100">
-                    <div class="h-48 bg-gray-50 flex items-center justify-center">
-                        <span class="text-gray-400">Görsel Yok</span>
-                    </div>
-                    
-                    <div class="p-4">
-                        <p class="text-xs text-green-600 font-semibold mb-1">{{ product.category.name }}</p>
-                        <h4 class="text-lg font-bold text-gray-900 truncate">{{ product.title }}</h4>
-                        <p class="text-sm text-gray-500 mt-1 mb-4 truncate">{{ product.shop.store_name }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div v-for="product in products" :key="'prod-'+product.id">
+                    <div v-if="product" class="bg-white rounded-[2rem] shadow-sm overflow-hidden hover:shadow-2xl transition-all duration-500 border border-gray-100 group">
+                        <div class="h-60 overflow-hidden relative">
+                            <img v-if="product.cover_image" 
+                                 :src="'/storage/' + product.cover_image.image_path" 
+                                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                            <div v-else class="h-full w-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-xs uppercase tracking-widest">Görsel Yok</div>
+                        </div>
                         
-                        <div class="flex justify-between items-end border-t pt-4">
-                            <div>
-                                <p class="text-xs text-gray-500 uppercase">Hemen Al Fiyatı</p>
-                                <p class="text-xl font-black text-gray-900">₺{{ product.buy_now_price || '299.00' }}</p>
+                        <div class="p-7">
+                            <p class="text-[10px] text-green-600 font-black uppercase tracking-[0.15em] mb-3">{{ product.category?.name || 'Genel' }}</p>
+                            <h4 class="text-lg font-bold text-gray-900 truncate mb-1">{{ product.title }}</h4>
+                            <p class="text-xs text-gray-400 mb-6 font-medium">Mağaza: {{ product.shop?.store_name || 'Bilinmiyor' }}</p>
+                            
+                            <div class="flex justify-between items-center border-t border-gray-50 pt-6">
+                                <div>
+                                    <p class="text-[10px] text-gray-400 uppercase font-black tracking-tighter mb-1">Fiyat</p>
+                                    <p class="text-2xl font-black text-gray-900 tracking-tight">₺{{ product.buy_now_price }}</p>
+                                </div>
+                                <Link :href="route('product.show', product.id)" 
+                                      class="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black hover:bg-green-600 transition-all shadow-lg active:scale-95 uppercase">
+                                    Satın Al
+                                </Link>
                             </div>
-                            <button class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition">Sepete Ekle</button>
                         </div>
                     </div>
                 </div>
@@ -98,3 +142,14 @@ defineProps({
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Kategori kaydırma çubuğunu gizle */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>
