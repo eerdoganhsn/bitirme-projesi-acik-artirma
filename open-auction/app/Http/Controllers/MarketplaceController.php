@@ -29,12 +29,37 @@ class MarketplaceController extends Controller
     }
     public function show($id)
     {
-        // Ürünü; kategorisi, dükkanı, tüm resimleri ve varsa açık artırma bilgileriyle beraber getir
+        
         $product = Product::with(['category', 'shop', 'images', 'auction.bids.user'])
-            ->findOrFail($id);
+                    ->findOrFail($id);
+
+        
+        $relatedProducts = Product::with(['category', 'shop', 'coverImage'])
+                            ->where('category_id', $product->category_id)
+                            ->where('id', '!=', $id) // Kendisini gösterme
+                            ->take(4) // 4 tane yeterli
+                            ->get();
 
         return Inertia::render('Product/Show', [
-            'product' => $product
+            'product' => $product,
+            'relatedProducts' => $relatedProducts,
+            
+            'comments' => $product->comments
+        ]);
+    }
+    public function category($id)
+    {
+        $currentCategory = Category::findOrFail($id);
+        
+        $products = Product::with(['category', 'shop', 'coverImage', 'auction' ])
+                    ->where('category_id', $id)
+                    ->latest()
+                    ->paginate(12);
+
+        return Inertia::render('Category/Show', [
+            'currentCategory' => $currentCategory,
+            'products' => $products,
+            'categories' => Category::all() // Sidebar için tüm kategoriler
         ]);
     }
 }

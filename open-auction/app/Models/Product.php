@@ -48,4 +48,5 @@ class Product extends Model
     {
         return $this->hasOne(ProductImage::class)->where('is_cover', true);
     }
+    public function comments() { return $this->hasMany(Comment::class)->latest(); }
 }
