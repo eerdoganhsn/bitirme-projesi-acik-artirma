@@ -12,19 +12,48 @@ class MarketplaceController extends Controller
 {
     public function index()
     {
+        $categories = Category::all();
+
+        // 1. AKTİF İHALELER
+        $auctions = Auction::with(['product.shop', 'product.category', 'product.coverImage'])
+            ->where('status', 'active')
+            ->where('end_time', '>', now())
+            ->whereHas('product', function($query) {
+                $query->where('status', 'active');
+            })
+            ->latest()
+            ->take(4) 
+            ->get();
+
+        // 2. HEMEN AL ÜRÜNLERİ
+        $products = Product::with(['shop', 'category', 'coverImage'])
+            ->where('listing_type', 'direct')
+            ->where('status', 'active')
+            ->inRandomOrder() 
+            ->take(4)
+            ->get();
+
+        // 3. SONA EREN İHALELER
+        $finishedAuctions = Auction::with(['product.shop', 'product.category', 'product.coverImage'])
+            ->where(function($query) {
+                $query->where('status', 'ended')
+                      ->orWhere('end_time', '<', now());
+            })
+            ->whereHas('product', function($query) {
+                $query->where('status', 'active');
+            })
+            ->orderBy('end_time', 'desc')
+            ->take(4)
+            ->get();
+
+        // Verileri Welcome görünümüne gönderiyoruz
         return Inertia::render('Welcome', [
             'canLogin' => Route::has('login'),
             'canRegister' => Route::has('register'),
-            'categories' => Category::all(),
-            'auctions' => Auction::with(['product.category', 'product.shop', 'product.coverImage'])
-                            ->latest()
-                            ->take(4)
-                            ->get(),
-            'products' => Product::with(['category', 'shop', 'coverImage'])
-                            ->where('listing_type', 'direct')
-                            ->latest()
-                            ->take(8)
-                            ->get(),
+            'categories' => $categories,
+            'auctions' => $auctions,
+            'products' => $products, 
+            'finishedAuctions' => $finishedAuctions,
         ]);
     }
     public function show($id)
@@ -61,5 +90,39 @@ class MarketplaceController extends Controller
             'products' => $products,
             'categories' => Category::all() // Sidebar için tüm kategoriler
         ]);
+    }
+    public function placeBid(Request $request, Auction $auction)
+    {
+        // 1. Güvenlik Kontrolleri
+        $request->validate([
+            'amount' => 'required|numeric',
+        ]);
+
+        if ($auction->status !== 'active' || now() > $auction->end_time) {
+            return back()->withErrors(['message' => 'Bu ihale sona ermiş. Artık teklif verilemez.']);
+        }
+
+        if ($auction->product->shop->user_id === auth()->id()) {
+            return back()->withErrors(['message' => 'Kendi ürününüze teklif veremezsiniz.']);
+        }
+
+        $minBid = $auction->current_price + 10; // En az 10 TL fazla vermeli
+        if ($request->amount < $minBid) {
+            return back()->withErrors(['message' => 'Teklifiniz güncel fiyattan en az 10 TL yüksek olmalıdır.']);
+        }
+
+        // 2. Teklifi Kaydet
+        \App\Models\Bid::create([
+            'auction_id' => $auction->id,
+            'user_id' => auth()->id(),
+            'amount' => $request->amount,
+        ]);
+
+        // 3. İhalenin Güncel Fiyatını Yenile
+        $auction->update([
+            'current_price' => $request->amount
+        ]);
+
+        return back()->with('success', 'Tebrikler! En yüksek teklifi siz verdiniz.');
     }
 }

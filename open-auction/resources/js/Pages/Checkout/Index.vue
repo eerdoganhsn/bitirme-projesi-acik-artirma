@@ -8,25 +8,31 @@ const props = defineProps({
     cartItems: Array
 });
 
-const totalPrice = computed(() => {
-    return props.cartItems.reduce((total, item) => {
-        return total + (item.product.buy_now_price * item.quantity);
-    }, 0);
-});
-
+// Form verilerini tanımlıyoruz (Backend'deki CheckoutController@store metodunun beklediği veriler)
 const form = useForm({
     full_name: '',
     address: '',
     city: '',
     phone: '',
+    // Kredi kartı bilgileri (Ödev olduğu için sadece simülasyon, veritabanına kaydetmeyeceğiz)
     card_no: '',
     card_expiry: '',
     card_cvv: '',
 });
 
 const submitOrder = () => {
+    // route('checkout.store') rotasına POST isteği atıyoruz
     form.post(route('checkout.store'), {
-        onSuccess: () => alert('Siparişiniz başarıyla alındı!')
+        onBefore: () => confirm('Siparişi onaylıyor musunuz?'),
+        onSuccess: () => {
+            // Başarılı olduğunda Controller bizi Dashboard'a atacak, 
+            // istersen buraya bir başarı mesajı alert ekleyebilirsin.
+            alert('Siparişiniz alındı, sepetiniz boşaltıldı!');
+        },
+        onError: (errors) => {
+            console.log(errors);
+            alert('Lütfen tüm alanları eksiksiz doldurun.');
+        }
     });
 };
 </script>
@@ -120,9 +126,17 @@ const submitOrder = () => {
                                 </div>
                             </div>
 
-                            <button @click="submitOrder" :disabled="form.processing" class="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black text-lg hover:bg-gray-900 transition-all shadow-xl shadow-indigo-100 active:scale-95 disabled:opacity-50">
-                                SİPARİŞİ TAMAMLA
+                            <button 
+                                @click="submitOrder" 
+                                :disabled="form.processing" 
+                                class="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black text-lg hover:bg-gray-900 transition-all shadow-xl shadow-indigo-100 active:scale-95 disabled:opacity-50"
+                            >
+                                <span v-if="form.processing">İŞLENİYOR...</span>
+                                <span v-else>SİPARİŞİ TAMAMLA</span>
                             </button>
+
+                            <!-- Hata mesajlarını göstermek istersen (Örn: Telefon zorunlu) -->
+                            <div v-if="form.errors.phone" class="text-red-500 text-xs mt-2">{{ form.errors.phone }}</div>
 
                             <p class="text-center mt-6 text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>

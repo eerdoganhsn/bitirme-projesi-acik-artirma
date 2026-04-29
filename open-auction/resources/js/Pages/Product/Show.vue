@@ -3,12 +3,32 @@ import { ref, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import Header from '@/Components/Header.vue';
 import Footer from '@/Components/Footer.vue';
+import Countdown from '@/Components/Countdown.vue';
 
 const props = defineProps({
     product: Object,
     relatedProducts: Array,
     comments: Array,
+    auth: Object, // Auth bilgisine erişmek için ekledik
 });
+
+// --- YARDIMCI FONKSİYONLAR ---
+
+const maskName = (name) => {
+    if (!name) return 'Gizli Kullanıcı';
+    return name.split(' ').map(word => word.charAt(0) + '***').join(' ');
+};
+
+const formatTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
+// Galeride hangi resmin büyük görüneceğini tutan state
+const activeImage = ref(props.product?.images?.[0]?.image_path || null);
+
+// --- FORMLAR VE MANTIK ---
 
 // Yorum Formu
 const commentForm = useForm({
@@ -34,19 +54,40 @@ const addToCart = () => {
     });
 };
 
-// Galeride hangi resmin büyük görüneceğini tutan state (GÜVENLİ)
-const activeImage = ref(props.product?.images?.[0]?.image_path || null);
+// --- TEKLİF VERME MANTIĞI (GÜNCELLENDİ) ---
 
-// Teklif verme formu (GÜVENLİ)
-const bidForm = useForm({
-    amount: (props.product?.auction?.current_price || props.product?.auction?.starting_price || 0) + 10,
+// Minimum teklif miktarını hesapla (Mevcut fiyat + 10)
+const minBidAmount = computed(() => {
+    if (!props.product?.auction) return 0;
+    return Number(props.product.auction.current_price) + 10;
 });
 
-const submitBid = () => {
-    if(!props.product?.auction?.id) return;
-    bidForm.post(route('auction.bid', props.product.auction.id), {
+// Teklif Formu (Tek bir isimde birleştirdik: bidForm)
+const bidForm = useForm({
+    amount: minBidAmount.value,
+});
+
+// Hızlı Teklif Artırma Fonksiyonu
+const quickBid = (extraAmount) => {
+    bidForm.amount = Number(bidForm.amount) + extraAmount;
+};
+
+// Teklifi Gönder
+const placeBid = () => {
+    if (!props.product.auction) return;
+    
+    // Kullanıcı giriş yapmamışsa uyar veya yönlendir
+    if (!props.auth?.user) {
+        alert('Teklif verebilmek için giriş yapmalısınız.');
+        return;
+    }
+
+    bidForm.post(route('auctions.bid', props.product.auction.id), {
         preserveScroll: true,
-        onSuccess: () => alert('Teklifiniz başarıyla iletildi!')
+        onSuccess: () => {
+            // Başarılı olursa input miktarını yeni minimuma güncelle
+            bidForm.amount = minBidAmount.value;
+        },
     });
 };
 </script>
@@ -55,12 +96,7 @@ const submitBid = () => {
     <Head :title="product?.title || 'Ürün Detayı'" />
     <Header />
     <div class="min-h-screen bg-gray-50 pb-20">
-        <nav class="bg-white border-b py-4 mb-8">
-            <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
-                <Link href="/" class="text-indigo-600 font-black italic text-xl">AçıkArtırma</Link>
-                <Link href="/" class="text-sm text-gray-500 hover:text-indigo-600">← Market'e Dön</Link>
-            </div>
-        </nav>
+        
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="lg:grid lg:grid-cols-2 lg:gap-x-12">
@@ -94,27 +130,63 @@ const submitBid = () => {
 
                     <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
                         
-                        <div v-if="product?.listing_type === 'auction'" class="space-y-6">
+                        <!-- Açık Artırma Modu -->
+                        <div v-if="product.listing_type === 'auction'" class="space-y-8">
                             <div class="flex justify-between items-end">
                                 <div>
-                                    <p class="text-xs text-gray-400 font-bold uppercase tracking-tighter mb-1">Şu Anki Teklif</p>
-                                    <p class="text-4xl font-black text-gray-900">₺{{ product?.auction?.current_price || product?.auction?.starting_price }}</p>
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Güncel Teklif</p>
+                                    <p class="text-5xl font-black text-gray-900 tracking-tighter">₺{{ product.auction?.current_price }}</p>
                                 </div>
-                                <div class="text-right">
-                                    <p class="text-[10px] text-red-500 font-black uppercase">Kalan Süre</p>
-                                    <p class="text-lg font-bold text-gray-800">12s : 45d : 10s</p>
+                                
+                                <div class="text-right flex flex-col items-end">
+                                    <p class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">Kalan Zaman</p>
+                                    <!-- SAYAÇ BİLEŞENİ BURAYA GELİYOR -->
+                                    <Countdown v-if="product.auction?.end_time" :endTime="product.auction.end_time" />
                                 </div>
                             </div>
 
-                            <div class="pt-6 border-t border-gray-50">
-                                <label class="block text-sm font-bold text-gray-700 mb-3">Teklifini Belirle</label>
-                                <div class="flex gap-4">
-                                    <input v-model="bidForm.amount" type="number" 
-                                           class="flex-1 rounded-2xl border-gray-200 py-4 px-6 focus:ring-indigo-500 focus:border-indigo-500 font-bold text-lg shadow-sm" />
-                                    <button @click="submitBid" class="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-                                        TEKLİF VER
-                                    </button>
+                            <!-- Teklif Verme Formu -->
+                            <div v-if="product.listing_type === 'auction'">
+                                
+                                <!-- DURUM 1: İHALE AKTİF VE SÜRE DEVAM EDİYOR -->
+                                <div v-if="product.auction?.status === 'active' && new Date(product.auction?.end_time) > new Date()">
+                                    <p class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Senin Teklifin</p>
+                                    
+                                    <div class="flex gap-4">
+                                        <input 
+                                            v-model="bidForm.amount" 
+                                            type="number" 
+                                            :min="minBidAmount"
+                                            class="flex-1 bg-white border-none rounded-2xl p-5 font-black text-xl shadow-sm focus:ring-2 focus:ring-indigo-600"
+                                            placeholder="0.00"
+                                        >
+                                        <button 
+                                            @click="placeBid" 
+                                            :disabled="bidForm.processing" 
+                                            class="bg-indigo-600 text-white px-10 py-5 rounded-2xl font-black hover:bg-gray-900 transition-all shadow-xl shadow-indigo-100 uppercase tracking-widest text-xs"
+                                        >
+                                            {{ bidForm.processing ? 'İşleniyor...' : 'Teklif Ver' }}
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Hata Mesajı Gösterimi (Opsiyonel) -->
+                                    <p v-if="bidForm.errors.amount" class="text-red-500 text-xs mt-2 font-bold">{{ bidForm.errors.amount }}</p>
                                 </div>
+
+                                <!-- DURUM 2: İHALE SONA ERDİ -->
+                                <div v-else class="bg-gray-100 border border-gray-200 rounded-2xl p-6 text-center">
+                                    <div class="inline-flex items-center justify-center w-12 h-12 bg-gray-200 rounded-full mb-3 text-gray-500">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                    </div>
+                                    <h3 class="text-gray-900 font-black uppercase tracking-tight">Bu İhale Sona Erdi</h3>
+                                    <p class="text-gray-500 text-sm mt-1 font-medium">Artık yeni teklif kabul edilmemektedir.</p>
+                                    
+                                    <div class="mt-4 pt-4 border-t border-gray-200">
+                                        <span class="text-xs text-gray-400 uppercase font-bold">Kazanan Teklif</span>
+                                        <p class="text-2xl font-black text-indigo-600">₺{{ product.auction?.current_price }}</p>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
@@ -133,7 +205,59 @@ const submitBid = () => {
                             </button>
                         </div>
                     </div>
+                    <!-- TEKLİF GEÇMİŞİ BÖLÜMÜ -->
+                    <div class="mt-10 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" v-if="product.listing_type === 'auction' && product.auction">
+                        
+                        <div class="bg-gray-50 border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+                            <h3 class="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
+                                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                Teklif Geçmişi
+                            </h3>
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
+                                {{ product.auction.bids?.length || 0 }} Teklif
+                            </span>
+                        </div>
 
+                        <div class="p-0">
+                            <!-- Eğer teklif varsa listele -->
+                            <ul v-if="product.auction.bids && product.auction.bids.length > 0" class="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                                <li v-for="(bid, index) in product.auction.bids" :key="bid.id" class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    
+                                    <div class="flex items-center gap-3">
+                                        <!-- En yüksek teklif ise ufak bir taç/kupa ikonu koyalım -->
+                                        <div v-if="index === 0" class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                                        </div>
+                                        <!-- Diğer teklifler için standart ikon -->
+                                        <div v-else class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-900">{{ maskName(bid.user?.name) }}</p>
+                                            <p class="text-[11px] text-gray-400 font-medium">{{ formatTime(bid.created_at) }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-right">
+                                        <p :class="['text-base font-black', index === 0 ? 'text-green-600' : 'text-gray-900']">
+                                            ₺{{ bid.amount }}
+                                        </p>
+                                    </div>
+
+                                </li>
+                            </ul>
+
+                            <!-- Eğer hiç teklif yoksa -->
+                            <div v-else class="px-6 py-12 text-center">
+                                <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <h4 class="text-gray-900 font-bold text-sm">Henüz Teklif Yok</h4>
+                                <p class="text-gray-400 text-xs mt-1">İlk teklifi veren sen ol ve öne geç!</p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
                         <h3 class="text-sm font-black text-gray-900 uppercase tracking-widest mb-4">Ürün Açıklaması</h3>
                         <p class="text-gray-600 leading-relaxed">{{ product?.description }}</p>
