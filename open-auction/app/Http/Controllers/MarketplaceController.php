@@ -121,4 +121,27 @@ class MarketplaceController extends Controller
     // 5. Başarıyla geri dön
     return back()->with('success', 'Teklifiniz başarıyla alındı!');
 }
+
+public function toggleWatchlist(\App\Models\Product $product)
+    {
+        $user = auth()->user();
+
+        // Kullanıcının bu ürünü zaten takip edip etmediğine bak
+        $existing = \App\Models\Watchlist::where('user_id', $user->id)
+                                         ->where('product_id', $product->id)
+                                         ->first();
+
+        if ($existing) {
+            // Zaten listedeyse çıkar
+            $existing->delete();
+            return back()->with('success', 'Ürün favorilerinizden çıkarıldı.');
+        } else {
+            // Listede yoksa ekle
+            \App\Models\Watchlist::create([
+                'user_id' => $user->id,
+                'product_id' => $product->id,
+            ]);
+            return back()->with('success', 'Ürün favorilerinize eklendi! ❤️');
+        }
+    }
 }

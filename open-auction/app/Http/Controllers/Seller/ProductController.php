@@ -12,11 +12,40 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $shop = auth()->user()->shop;
+        $user = auth()->user();
+        $shop = $user->shop;
+
+        if (!$shop) {
+            // Eğer mağaza yoksa boş liste döndür (İstersen burada başka bir sayfaya da yönlendirebilirsin)
+            return Inertia::render('Seller/Products/Index', [
+                'products' => [],
+                'pendingOrdersCount' => 0,
+                'recentOrders' => []
+            ]);
+        }
+
+        // 1. Mağazanın aktif ürünlerini ve ihalelerini çek
         $products = $shop->products()->with(['category', 'auction'])->latest()->get();
 
+        // 2. Bekleyen Siparişlerin Sayısını Çek (Sadece 'pending' olanlar)
+        $pendingOrdersCount = \App\Models\OrderItem::whereHas('product', function ($q) use ($shop) {
+            $q->where('shop_id', $shop->id);
+        })->where('status', 'pending')->count();
+
+        // 3. Vitrin için Son Gelen 5 Siparişi Çek
+        $recentOrders = \App\Models\OrderItem::with(['order.user', 'product.coverImage'])
+            ->whereHas('product', function ($q) use ($shop) {
+                $q->where('shop_id', $shop->id);
+            })
+            ->latest()
+            ->take(5)
+            ->get();
+
+        // 4. Hepsini tek bir seferde Vue tarafına gönder
         return Inertia::render('Seller/Products/Index', [
-            'products' => $products
+            'products' => $products,
+            'pendingOrdersCount' => $pendingOrdersCount,
+            'recentOrders' => $recentOrders,
         ]);
     }
 
@@ -31,21 +60,19 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        
         $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'category_id' => 'required|exists:categories,id',
-        'listing_type' => 'required|in:direct,auction',
-        'price' => 'required|numeric|min:1',
-        'stock' => 'nullable|required_if:listing_type,direct|numeric|min:1',
-        'end_date' => 'nullable|required_if:listing_type,auction|date|after:now',
-        // 'images' alanını nullable yaptık ve dizi kontrolünü esnettik
-        'images' => 'nullable|array',
-        'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
-        'cover_index' => 'nullable|integer',
-    ]);
+            'title' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'listing_type' => 'required|in:direct,auction',
+            'price' => 'required|numeric|min:1',
+            'stock' => 'nullable|required_if:listing_type,direct|numeric|min:1',
+            'end_date' => 'nullable|required_if:listing_type,auction|date|after:now',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:5120',
+            'cover_index' => 'nullable|integer',
+        ]);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $validated) {
+        DB::transaction(function () use ($request, $validated) {
             
             // A. Ana ürünü kaydet
             $product = \App\Models\Product::create([
@@ -70,7 +97,7 @@ class ProductController extends Controller
                 ]);
             }
 
-            // C. YENİ BÖLÜM: Resimleri Storage'a yükle ve veritabanına kaydet
+            // C. Resimleri Storage'a yükle ve veritabanına kaydet
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
                     $path = $image->store('products', 'public');
@@ -91,25 +118,21 @@ class ProductController extends Controller
     }
 
     public function tempUpload(Request $request)
-{
-    // 1. Gelen dosyayı kontrol et
-    if (!$request->hasFile('image')) {
-        return response()->json(['error' => 'Dosya bulunamadı'], 400);
+    {
+        if (!$request->hasFile('image')) {
+            return response()->json(['error' => 'Dosya bulunamadı'], 400);
+        }
+
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ]);
+
+        $path = $request->file('image')->store('temp_products', 'public');
+
+        return response()->json([
+            'path' => $path
+        ]);
     }
-
-    // 2. Doğrula (PNG/JPG/WebP ve 5MB limit)
-    $request->validate([
-        'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
-    ]);
-
-    // 3. 'public/temp_products' klasörüne kaydet
-    $path = $request->file('image')->store('temp_products', 'public');
-
-    // 4. Vue'ya dosya yolunu geri döndür
-    return response()->json([
-        'path' => $path
-    ]);
-}
     
     public function edit($id)
     {
@@ -128,69 +151,61 @@ class ProductController extends Controller
     }
 
     public function update(Request $request, $id)
-{
+    {
+        $product = \App\Models\Product::findOrFail($id);
 
-    $product = \App\Models\Product::findOrFail($id);
+        if ($product->shop_id !== auth()->user()->shop->id) {
+            abort(403, 'Bu ürünü düzenleme yetkiniz yok.');
+        }
 
-    if ($product->shop_id !== auth()->user()->shop->id) {
-        abort(403, 'Bu ürünü düzenleme yetkiniz yok.');
-    }
-
-
-
-    $validated = $request->validate([
-        'title' => 'required|string|max:255',
-        'category_id' => 'required|exists:categories,id',
-        'price' => 'required|numeric|min:1',
-        'stock' => 'nullable|numeric|min:1',
-        'end_date' => 'nullable|date',
-        'images' => 'required|array|min:1', 
-        'cover_index' => 'required|integer',
-    ]);
-
-
-    DB::transaction(function () use ($validated, $product, $request) {
-        
-        $product->update([
-            'title' => $validated['title'],
-            'category_id' => $validated['category_id'],
-            'buy_now_price' => $product->listing_type === 'direct' ? $validated['price'] : null,
-            'stock' => $validated['stock'],
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'price' => 'required|numeric|min:1',
+            'stock' => 'nullable|numeric|min:1',
+            'end_date' => 'nullable|date',
+            'images' => 'required|array|min:1', 
+            'cover_index' => 'required|integer',
         ]);
 
-
-        if ($product->listing_type === 'auction') {
-            $product->auction()->update([
-                'starting_price' => $validated['price'],
-                'current_price' => $validated['price'], 
-                'end_time' => $validated['end_date'],
+        DB::transaction(function () use ($validated, $product, $request) {
+            
+            $product->update([
+                'title' => $validated['title'],
+                'category_id' => $validated['category_id'],
+                'buy_now_price' => $product->listing_type === 'direct' ? $validated['price'] : null,
+                'stock' => $validated['stock'],
             ]);
-        }
 
-        $product->images()->delete();
+            if ($product->listing_type === 'auction') {
+                $product->auction()->update([
+                    'starting_price' => $validated['price'],
+                    'current_price' => $validated['price'], 
+                    'end_time' => $validated['end_date'],
+                ]);
+            }
 
-        foreach ($validated['images'] as $index => $path) {
-            $product->images()->create([
-                'image_path' => $path,
-                'is_cover' => ($index === (int) $validated['cover_index']),
-            ]);
-        }
-    });
+            $product->images()->delete();
 
-    // 4. Başarılı mesajıyla yönlendir
-    return redirect()->route('seller.products.index')->with('success', 'Ürün başarıyla güncellendi.');
-}
+            foreach ($validated['images'] as $index => $path) {
+                $product->images()->create([
+                    'image_path' => $path,
+                    'is_cover' => ($index === (int) $validated['cover_index']),
+                ]);
+            }
+        });
+
+        return redirect()->route('seller.products.index')->with('success', 'Ürün başarıyla güncellendi.');
+    }
 
     public function destroy($id)
     {
         $product = \App\Models\Product::findOrFail($id);
 
-        // GÜVENLİK: Başkası senin ürününü silemesin
         if ($product->shop_id !== auth()->user()->shop->id) {
             abort(403, 'Bu ürünü silme yetkiniz yok.');
         }
 
-        // Ürünü sil (Eğer veritabanında onDelete('cascade') varsa bağlı açık artırma da silinir)
         $product->delete();
 
         return redirect()->route('seller.products.index');

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->integer('quantity');
             $table->decimal('price', 12, 2); // Ürünün satın alındığı andaki fiyatı
             $table->timestamps();
+            $table->string('status')->default('pending');
         });
     }
 

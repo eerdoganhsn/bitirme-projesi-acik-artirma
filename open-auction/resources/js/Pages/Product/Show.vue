@@ -65,7 +65,24 @@ const addToCart = () => {
         onSuccess: () => alert('Ürün sepetinize eklendi!')
     });
 };
+// Favorilere Ekleme Formu
+const watchlistForm = useForm({});
 
+const toggleWatchlist = () => {
+    // KESİN ÇÖZÜM: Inertia'nın güncel prop'larından kullanıcıyı kontrol et
+    if (!currentUser.value) {
+        alert('Favorilere eklemek için giriş yapmalısınız.');
+        return;
+    }
+    
+    watchlistForm.post(route('watchlist.toggle', props.product.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            // İstersen eklendiğine dair küçük bir bildirim verebilirsin
+            // alert('İzleme listesi güncellendi!');
+        }
+    });
+};
 // --- TEKLİF VERME MANTIĞI ---
 
 // Minimum teklif miktarını hesapla (Mevcut fiyat + 10)
@@ -140,6 +157,17 @@ const placeBid = () => {
                             <span class="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
                                 {{ product?.category?.name || 'Kategori Yok' }}
                             </span>
+                            <!-- FAVORİ (KALP) BUTONU -->
+                            <button 
+                                @click="toggleWatchlist" 
+                                :disabled="watchlistForm.processing"
+                                class="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                                </svg>
+                                <span class="text-sm font-bold">Kaydet</span>
+                            </button>
                         </nav>
                         <h1 class="text-3xl font-black text-gray-900 leading-tight">{{ product?.title }}</h1>
                         <p class="text-sm text-gray-400 mt-2">Satıcı: <span class="font-bold text-gray-700">{{ product?.shop?.store_name || 'Bilinmeyen Satıcı' }}</span></p>

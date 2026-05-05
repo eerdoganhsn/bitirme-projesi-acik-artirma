@@ -46,7 +46,7 @@ class User extends Authenticatable
     }
     public function watchlist()
     {
-        return $this->belongsToMany(Product::class, 'watchlists');
+        return $this->hasMany(Watchlist::class);
     }
 
     public function notifications()
