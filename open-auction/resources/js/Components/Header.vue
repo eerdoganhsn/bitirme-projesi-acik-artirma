@@ -69,10 +69,6 @@ onUnmounted(() => window.removeEventListener('click', closeMenu));
     </div>
 
     <template v-if="$page.props.auth.user.is_seller">
-        <Link :href="route('dashboard')" class="flex items-center gap-3 px-6 py-3 text-sm font-black text-indigo-600 hover:bg-indigo-50 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-            Yönetim Paneli
-        </Link>
         <Link href="#" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
             Ürünlerimi Yönet
         </Link>
@@ -80,7 +76,9 @@ onUnmounted(() => window.removeEventListener('click', closeMenu));
     </template>
 
     
-    
+    <Link :href="route('dashboard')" class="flex items-center gap-3 px-6 py-3 text-sm font-black text-gray-600 :bg-indigo-50 transition">
+            Müşteri Paneli
+        </Link>
     <Link :href="route('profile.edit')" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
         Hesap Ayarları
     </Link>

@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Models\Bid;
 
 class MarketplaceController extends Controller
 {
@@ -92,37 +93,32 @@ class MarketplaceController extends Controller
         ]);
     }
     public function placeBid(Request $request, Auction $auction)
-    {
-        // 1. Güvenlik Kontrolleri
-        $request->validate([
-            'amount' => 'required|numeric',
-        ]);
+{
+    // 1. Veriyi Doğrula
+    $request->validate([
+        'amount' => ['required', 'numeric', 'min:' . ($auction->current_price + 1)],
+    ], [
+        'amount.min' => 'Teklifiniz güncel fiyattan yüksek olmalıdır!'
+    ]);
 
-        if ($auction->status !== 'active' || now() > $auction->end_time) {
-            return back()->withErrors(['message' => 'Bu ihale sona ermiş. Artık teklif verilemez.']);
-        }
-
-        if ($auction->product->shop->user_id === auth()->id()) {
-            return back()->withErrors(['message' => 'Kendi ürününüze teklif veremezsiniz.']);
-        }
-
-        $minBid = $auction->current_price + 10; // En az 10 TL fazla vermeli
-        if ($request->amount < $minBid) {
-            return back()->withErrors(['message' => 'Teklifiniz güncel fiyattan en az 10 TL yüksek olmalıdır.']);
-        }
-
-        // 2. Teklifi Kaydet
-        \App\Models\Bid::create([
-            'auction_id' => $auction->id,
-            'user_id' => auth()->id(),
-            'amount' => $request->amount,
-        ]);
-
-        // 3. İhalenin Güncel Fiyatını Yenile
-        $auction->update([
-            'current_price' => $request->amount
-        ]);
-
-        return back()->with('success', 'Tebrikler! En yüksek teklifi siz verdiniz.');
+    // 2. İhalenin süresi bitmiş mi kontrol et
+    if ($auction->status !== 'active' || now()->greaterThan($auction->end_time)) {
+        return back()->withErrors(['amount' => 'Bu ihale sona ermiştir, teklif verilemez.']);
     }
+
+    // 3. Teklifi Veritabanına Kaydet
+    Bid::create([
+        'auction_id' => $auction->id,
+        'user_id' => auth()->id(),
+        'amount' => $request->amount,
+    ]);
+
+    // 4. İhalenin güncel fiyatını güncelle
+    $auction->update([
+        'current_price' => $request->amount,
+    ]);
+
+    // 5. Başarıyla geri dön
+    return back()->with('success', 'Teklifiniz başarıyla alındı!');
+}
 }

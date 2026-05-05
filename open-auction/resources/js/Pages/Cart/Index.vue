@@ -21,6 +21,12 @@ const removeItem = (id) => {
         deleteForm.delete(route('cart.destroy', id));
     }
 };
+const getImagePath = (path) => {
+    if (!path) return '';
+    // Eğer yol http ile başlıyorsa (Seeder verisi), olduğu gibi döndür.
+    // Başlamıyorsa (Kullanıcının yüklediği gerçek resim), başına /storage/ ekle.
+    return path.startsWith('http') ? path : '/storage/' + path;
+};
 </script>
 
 <template>
@@ -44,7 +50,7 @@ const removeItem = (id) => {
                              class="bg-white rounded-[2.5rem] p-6 sm:p-8 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-center gap-8 transition-all hover:shadow-xl hover:shadow-indigo-100/30">
                             
                             <div class="w-32 h-32 rounded-3xl overflow-hidden bg-gray-50 border border-gray-100 flex-shrink-0">
-                                <img v-if="item.product.cover_image" :src="'/storage/' + item.product.cover_image.image_path" class="w-full h-full object-cover" />
+                                <img v-if="item.product.cover_image" :src="getImagePath(item.product.cover_image.image_path)" class="w-full h-full object-cover" />
                                 <div v-else class="w-full h-full flex items-center justify-center text-[10px] font-black text-gray-300 uppercase tracking-widest">Resim Yok</div>
                             </div>
 

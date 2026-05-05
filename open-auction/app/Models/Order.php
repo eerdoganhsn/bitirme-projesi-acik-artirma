@@ -15,7 +15,8 @@ class Order extends Model
         'address',
         'city',
         'phone',
-        'status'
+        'status',
+        'shipping_address',
     ];
 
     public function items()

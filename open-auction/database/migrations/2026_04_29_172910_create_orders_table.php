@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('city');
             $table->string('phone');
             $table->string('status')->default('pending'); // pending, processing, shipped, completed
+            $table->text('shipping_address')->nullable();
             $table->timestamps();
         });
     }

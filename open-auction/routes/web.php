@@ -14,7 +14,34 @@ use App\Http\Controllers\CheckoutController;
 Route::get('/', [MarketplaceController::class, 'index'])->name('home');
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    $user = auth()->user();
+    $bidsCount = \App\Models\Bid::where('user_id', $user->id)
+                    ->distinct('auction_id')
+                    ->count('auction_id');
+
+    $myBids = \App\Models\Bid::with(['auction.product.coverImage'])
+                    ->where('user_id', $user->id)
+                    ->latest()
+                    ->get()
+                    ->unique('auction_id') 
+                    ->values();
+    $ordersCount = \App\Models\Order::where('user_id', $user->id)->count();
+
+    $myOrders = \App\Models\Order::with(['items.product.coverImage']) 
+                    ->where('user_id', $user->id)
+                    ->latest()
+                    ->take(5) 
+                    ->get();
+
+    return Inertia::render('Dashboard', [
+        'stats' => [
+            'totalBids' => $bidsCount,
+            'watchlistCount' => 0, 
+            'ordersCount' => $ordersCount, 
+        ],
+        'myBids' => $myBids,
+        'myOrders' => $myOrders
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -45,6 +72,12 @@ Route::middleware(['auth'])->prefix('seller')->name('seller.')->group(function (
     Route::put('/products/{id}', [SellerProductController::class, 'update'])->name('products.update');
     Route::post('/products/temp-upload', [SellerProductController::class, 'tempUpload'])->name('products.temp-upload');
     Route::delete('/products/{id}', [SellerProductController::class, 'destroy'])->name('products.destroy');
+    
+});
+
+// DOĞRU KULLANIM:
+Route::middleware(['auth'])->group(function () {
+    // Normal üyeler için teklif rotası
     Route::post('/auctions/{auction}/bid', [MarketplaceController::class, 'placeBid'])->name('auctions.bid');
 });
 

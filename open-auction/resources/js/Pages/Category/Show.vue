@@ -13,6 +13,13 @@ const getPrice = (product) => {
     if (product.auction?.starting_price) return product.auction.starting_price;
     return 0;
 };
+
+const getImagePath = (path) => {
+    if (!path) return '';
+    // Eğer yol http ile başlıyorsa (Seeder verisi), olduğu gibi döndür.
+    // Başlamıyorsa (Kullanıcının yüklediği gerçek resim), başına /storage/ ekle.
+    return path.startsWith('http') ? path : '/storage/' + path;
+};
 </script>
 
 <template>
@@ -97,7 +104,7 @@ const getPrice = (product) => {
                             <Link :href="route('product.show', product.id)" class="group block bg-white rounded-[2rem] p-4 border border-gray-100 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 h-full flex flex-col">
                                 
                                 <div class="h-64 rounded-3xl overflow-hidden mb-5 relative bg-gray-50">
-                                    <img v-if="product.cover_image" :src="'/storage/' + product.cover_image.image_path" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                    <img v-if="product.cover_image" :src="getImagePath(product.cover_image.image_path)" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                                     <div v-else class="h-full w-full flex items-center justify-center text-gray-300 font-black text-sm uppercase tracking-widest">Görsel Yok</div>
                                     <div v-if="product.listing_type === 'auction'" class="absolute top-4 left-4 bg-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg animate-pulse">İhalede</div>
                                 </div>

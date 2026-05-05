@@ -12,6 +12,13 @@ defineProps({
     products: Array,
     finishedAuctions: Array, // Biten ihaleler için eklendi
 });
+
+const getImagePath = (path) => {
+    if (!path) return '';
+    // Eğer yol http ile başlıyorsa (Seeder verisi), olduğu gibi döndür.
+    // Başlamıyorsa (Kullanıcının yüklediği gerçek resim), başına /storage/ ekle.
+    return path.startsWith('http') ? path : '/storage/' + path;
+};
 </script>
 
 <template>
@@ -70,7 +77,7 @@ defineProps({
                         <div class="h-60 overflow-hidden relative">
                             <img
                                 v-if="auction.product.cover_image"
-                                :src="'/storage/' + auction.product.cover_image.image_path"
+                                :src="getImagePath(auction.product.cover_image.image_path)"
                                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                             />
                             <div
@@ -140,7 +147,7 @@ defineProps({
                         <div class="h-60 overflow-hidden relative">
                             <img
                                 v-if="product.cover_image"
-                                :src="'/storage/' + product.cover_image.image_path"
+                                :src="getImagePath(product.cover_image.image_path)"
                                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                             />
                             <div
@@ -197,7 +204,7 @@ defineProps({
                 <div v-for="auction in finishedAuctions" :key="'fin-' + auction.id">
                     <div v-if="auction && auction.product" class="bg-gray-50 rounded-[2rem] shadow-sm overflow-hidden border border-gray-200 opacity-75 grayscale hover:grayscale-0 transition-all duration-500">
                         <div class="h-60 overflow-hidden relative">
-                            <img v-if="auction.product.cover_image" :src="'/storage/' + auction.product.cover_image.image_path" class="w-full h-full object-cover" />
+                            <img v-if="auction.product.cover_image" :src="getImagePath(auction.product.cover_image.image_path)" class="w-full h-full object-cover" />
                             <div v-else class="h-full w-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xs uppercase tracking-widest">Görsel Yok</div>
                             
                             <div class="absolute bottom-4 left-4 z-10 bg-gray-900 text-white px-3 py-1.5 rounded-full text-xs font-bold tracking-widest shadow-lg">
