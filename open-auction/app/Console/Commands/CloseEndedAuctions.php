@@ -16,9 +16,7 @@ class CloseEndedAuctions extends Command
      */
     protected $signature = 'auctions:close';
 
-    /**
-     * Komutun açıklaması
-     */
+    
     protected $description = 'Süresi dolan ihaleleri kontrol eder, kapatır ve kazananlara sipariş oluşturur.';
 
     /**
