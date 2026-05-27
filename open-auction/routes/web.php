@@ -119,9 +119,10 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // ========================================================
-// SATICIYA ÖZEL ROTALAR
+// SATICIYA ÖZEL ROTALAR (GÜVENLİK DUVARI EKLENDİ)
 // ========================================================
-Route::middleware(['auth'])->prefix('seller')->name('seller.')->group(function () {
+// Sadece giriş yapmış (auth) VE satıcı yetkisine sahip (seller) olanlar girebilir!
+Route::middleware(['auth', 'seller'])->prefix('seller')->name('seller.')->group(function () {
     // Ürün Yönetimi
     Route::get('/products', [SellerProductController::class, 'index'])->name('products.index');
     Route::get('/products/create', [SellerProductController::class, 'create'])->name('products.create');
@@ -150,5 +151,11 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/product/{id}', [MarketplaceController::class, 'show'])->name('product.show');
 Route::get('/category/{id}', [MarketplaceController::class, 'category'])->name('category.show');
 Route::post('/comments', [CommentController::class, 'store'])->middleware('auth')->name('comments.store');
+
+
+// Yanlış bir URL girildiğinde çalışacak özel 404 sayfası
+Route::fallback(function () {
+    return \Inertia\Inertia::render('Error404');
+});
 
 require __DIR__.'/auth.php';

@@ -1,6 +1,36 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { usePage, Link } from '@inertiajs/vue3';
+import Swal from 'sweetalert2';
+
+const page = usePage();
+const currentUser = computed(() => page.props.auth?.user);
+
+onMounted(() => {
+    // Sadece giriş yapmış kullanıcılar kendi özel (private) bildirim kanalını dinler
+    if (currentUser.value) {
+        window.Echo.private(`App.Models.User.${currentUser.value.id}`)
+            .notification((notification) => {
+                
+                // Sağ üst köşeden çıkan şık "Toast" bildirimi
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'Teklifin Geçildi! ⚠️',
+                    text: notification.message,
+                    showConfirmButton: false,
+                    timer: 6000,
+                    timerProgressBar: true,
+                    didOpen: (toast) => {
+                        toast.addEventListener('mouseenter', Swal.stopTimer)
+                        toast.addEventListener('mouseleave', Swal.resumeTimer)
+                    }
+                });
+                
+            });
+    }
+});
 
 // Menünün açık/kapalı durumunu tutan state
 const isProfileMenuOpen = ref(false);
@@ -35,16 +65,16 @@ onUnmounted(() => window.removeEventListener('click', closeMenu));
                         </span>
                     </Link>
 
-                    <div v-if="$page.props.auth.user" id="profile-menu-container" class="relative">
+                    <div v-if="$page.props.auth?.user" id="profile-menu-container" class="relative">
                         <button 
                             @click="isProfileMenuOpen = !isProfileMenuOpen"
                             class="flex items-center gap-3 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-gray-100 hover:bg-gray-100 transition-all active:scale-95"
                         >
                             <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center font-black text-white text-xs shadow-lg shadow-indigo-100">
-                                {{ $page.props.auth.user.name[0] }}
+                                {{ $page.props.auth?.user?.name[0] }}
                             </div>
                             <span class="hidden sm:block text-xs font-black text-gray-700 uppercase tracking-tighter">
-                                {{ $page.props.auth.user.name.split(' ')[0] }}
+                                {{ $page.props.auth?.user?.name.split(' ')[0] }}
                             </span>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 transition-transform duration-300" :class="{'rotate-180': isProfileMenuOpen}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -60,35 +90,35 @@ onUnmounted(() => window.removeEventListener('click', closeMenu));
                             leave-to-class="transform scale-95 opacity-0"
                         >
                             <div v-if="isProfileMenuOpen" class="absolute right-0 mt-3 w-64 bg-white rounded-[2rem] shadow-2xl border border-gray-100 py-4 overflow-hidden z-50">
-    
-    <div class="px-6 py-3 border-b border-gray-50 mb-2">
-        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hoş Geldin</p>
-        <p class="text-sm font-black text-gray-900 truncate">{{ $page.props.auth.user.name }}</p>
-        <span v-if="$page.props.auth.user.is_seller" class="text-[9px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">Mağaza Yöneticisi</span>
-        <span v-else class="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">Müşteri</span>
-    </div>
+                                
+                                <div class="px-6 py-3 border-b border-gray-50 mb-2">
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hoş Geldin</p>
+                                    <p class="text-sm font-black text-gray-900 truncate">{{ $page.props.auth?.user?.name }}</p>
+                                    <span v-if="$page.props.auth?.user?.is_seller" class="text-[9px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">Mağaza Yöneticisi</span>
+                                    <span v-else class="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">Müşteri</span>
+                                </div>
 
-    <template v-if="$page.props.auth.user.is_seller">
-        <Link href="#" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
-            Ürünlerimi Yönet
-        </Link>
-        <div class="h-px bg-gray-50 my-2 mx-6"></div>
-    </template>
+                                <template v-if="$page.props.auth?.user?.is_seller">
+                                    <Link :href="route('seller.products.index')" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
+                                        Ürünlerimi Yönet
+                                    </Link>
+                                    <div class="h-px bg-gray-50 my-2 mx-6"></div>
+                                </template>
 
-    
-    <Link :href="route('dashboard')" class="flex items-center gap-3 px-6 py-3 text-sm font-black text-gray-600 :bg-indigo-50 transition">
-            Müşteri Paneli
-        </Link>
-    <Link :href="route('profile.edit')" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
-        Hesap Ayarları
-    </Link>
+                                <Link :href="route('dashboard')" class="flex items-center gap-3 px-6 py-3 text-sm font-black text-gray-600 hover:bg-indigo-50 transition">
+                                    Panelim
+                                </Link>
+                                
+                                <Link :href="route('profile.edit')" class="flex items-center gap-3 px-6 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 transition">
+                                    Hesap Ayarları
+                                </Link>
 
-    <div class="h-px bg-gray-50 my-2 mx-6"></div>
+                                <div class="h-px bg-gray-50 my-2 mx-6"></div>
 
-    <Link :href="route('logout')" method="post" as="button" class="w-full text-left flex items-center gap-3 px-6 py-3 text-sm font-black text-red-500 hover:bg-red-50 transition">
-        Güvenli Çıkış
-    </Link>
-</div>
+                                <Link :href="route('logout')" method="post" as="button" class="w-full text-left flex items-center gap-3 px-6 py-3 text-sm font-black text-red-500 hover:bg-red-50 transition">
+                                    Güvenli Çıkış
+                                </Link>
+                            </div>
                         </transition>
                     </div>
 

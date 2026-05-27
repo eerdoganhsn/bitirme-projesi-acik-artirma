@@ -92,35 +92,50 @@ class MarketplaceController extends Controller
             'categories' => Category::all() // Sidebar için tüm kategoriler
         ]);
     }
-    public function placeBid(Request $request, Auction $auction)
-{
-    // 1. Veriyi Doğrula
-    $request->validate([
-        'amount' => ['required', 'numeric', 'min:' . ($auction->current_price + 1)],
-    ], [
-        'amount.min' => 'Teklifiniz güncel fiyattan yüksek olmalıdır!'
-    ]);
+public function placeBid(Request $request, Auction $auction)
+    {
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:' . ($auction->current_price + 1)],
+        ], [
+            'amount.min' => 'Teklifiniz güncel fiyattan yüksek olmalıdır!'
+        ]);
 
-    // 2. İhalenin süresi bitmiş mi kontrol et
-    if ($auction->status !== 'active' || now()->greaterThan($auction->end_time)) {
-        return back()->withErrors(['amount' => 'Bu ihale sona ermiştir, teklif verilemez.']);
+        if ($auction->status !== 'active' || now()->greaterThan($auction->end_time)) {
+            return back()->withErrors(['amount' => 'Bu ihale sona ermiştir, teklif verilemez.']);
+        }
+
+        // ==========================================
+        // YENİ: BİZDEN ÖNCEKİ LİDERİ BUL
+        // ==========================================
+        $previousHighestBid = $auction->bids()->orderBy('amount', 'desc')->first();
+
+        Bid::create([
+            'auction_id' => $auction->id,
+            'user_id' => auth()->id(),
+            'amount' => $request->amount,
+        ]);
+
+        $auction->update([
+            'current_price' => $request->amount,
+        ]);
+
+        // ==========================================
+        // YENİ: ESKİ LİDERE BİLDİRİM GÖNDER
+        // Eğer önceki bir teklif varsa VE o kişi biz değilsek (kendi teklifimizi geçmiyorsak)
+        // ==========================================
+        if ($previousHighestBid && $previousHighestBid->user_id !== auth()->id()) {
+            $previousHighestBid->user->notify(new \App\Notifications\OutbidNotification(
+                $auction->product->title, 
+                $auction->product->id, 
+                $request->amount
+            ));
+        }
+
+        // Fiyatın değiştiğini herkese duyuran canlı yayın (Önceki adımda yapmıştık)
+        broadcast(new \App\Events\BidUpdated($auction->id, $request->amount, auth()->user()->name));
+
+        return back()->with('success', 'Teklifiniz başarıyla alındı!');
     }
-
-    // 3. Teklifi Veritabanına Kaydet
-    Bid::create([
-        'auction_id' => $auction->id,
-        'user_id' => auth()->id(),
-        'amount' => $request->amount,
-    ]);
-
-    // 4. İhalenin güncel fiyatını güncelle
-    $auction->update([
-        'current_price' => $request->amount,
-    ]);
-
-    // 5. Başarıyla geri dön
-    return back()->with('success', 'Teklifiniz başarıyla alındı!');
-}
 
 public function toggleWatchlist(\App\Models\Product $product)
     {

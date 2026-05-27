@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3'; // usePage EKLENDİ
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import Header from '@/Components/Header.vue';
 import Footer from '@/Components/Footer.vue';
 import Countdown from '@/Components/Countdown.vue';
@@ -9,14 +9,52 @@ const props = defineProps({
     product: Object,
     relatedProducts: Array,
     comments: Array,
-}); // auth props'unu sildik, Inertia'dan alacağız
+});
 
-// Sayfa verilerine erişim
 const page = usePage();
 const currentUser = computed(() => page.props.auth?.user);
 
-// --- YARDIMCI FONKSİYONLAR ---
+// ============================================================================
+// CANLI YAYIN (REAL-TIME) DEĞİŞKENLERİ
+// ============================================================================
+// Fiyatı ve teklifleri doğrudan props'tan okumak yerine reaktif değişkenlere alıyoruz
+// Böylece arka plandan yeni teklif gelince sayfa yenilenmeden anında güncelleyebileceğiz.
+const currentAuctionPrice = ref(props.product?.auction?.current_price || 0);
+const currentBids = ref(props.product?.auction?.bids || []);
 
+// ============================================================================
+// WEBSOCKET (ECHO) DİNLEYİCİSİ
+// ============================================================================
+onMounted(() => {
+    // Sadece ihale ürünüyse ve açık artırma kaydı varsa dinlemeye başla
+    if (props.product?.listing_type === 'auction' && props.product?.auction) {
+        
+        window.Echo.channel(`auction.${props.product.auction.id}`)
+            .listen('.bid.placed', (e) => {
+                console.log('Canlı Teklif Geldi!', e);
+                
+                // 1. Ekranda görünen büyük fiyatı anında güncelle
+                currentAuctionPrice.value = e.newPrice;
+                
+                // 2. Teklif listesinin en üstüne (unshift ile) yeni teklifi ekle
+                currentBids.value.unshift({
+                    id: Date.now(), // Tarayıcıda anlık görünmesi için geçici ID
+                    amount: e.newPrice,
+                    user: { name: e.bidderName },
+                    created_at: new Date().toISOString()
+                });
+            });
+    }
+});
+
+// Kullanıcı sayfadan ayrıldığında dinlemeyi durdur (Performans için önemli)
+onUnmounted(() => {
+    if (props.product?.auction) {
+        window.Echo.leaveChannel(`auction.${props.product.auction.id}`);
+    }
+});
+
+// --- YARDIMCI FONKSİYONLAR ---
 const maskName = (name) => {
     if (!name) return 'Gizli Kullanıcı';
     return name.split(' ').map(word => word.charAt(0) + '***').join(' ');
@@ -28,18 +66,14 @@ const formatTime = (dateString) => {
     return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
-// Akıllı Görsel Yolu Çözücü (İnternet linki mi yoksa local storage mı olduğunu anlar)
 const getImagePath = (path) => {
     if (!path) return '';
     return path.startsWith('http') ? path : '/storage/' + path;
 };
 
-// Galeride hangi resmin büyük görüneceğini tutan state
 const activeImage = ref(props.product?.images?.[0]?.image_path || props.product?.cover_image?.image_path || null);
 
 // --- FORMLAR VE MANTIK ---
-
-// Yorum Formu
 const commentForm = useForm({
     product_id: props.product?.id,
     content: '',
@@ -55,7 +89,6 @@ const submitComment = () => {
     });
 };
 
-// Sepete Ekleme Formu (Hemen Al için)
 const addToCartForm = useForm({
     product_id: props.product?.id
 });
@@ -65,11 +98,10 @@ const addToCart = () => {
         onSuccess: () => alert('Ürün sepetinize eklendi!')
     });
 };
-// Favorilere Ekleme Formu
+
 const watchlistForm = useForm({});
 
 const toggleWatchlist = () => {
-    // KESİN ÇÖZÜM: Inertia'nın güncel prop'larından kullanıcıyı kontrol et
     if (!currentUser.value) {
         alert('Favorilere eklemek için giriş yapmalısınız.');
         return;
@@ -77,37 +109,30 @@ const toggleWatchlist = () => {
     
     watchlistForm.post(route('watchlist.toggle', props.product.id), {
         preserveScroll: true,
-        onSuccess: () => {
-            // İstersen eklendiğine dair küçük bir bildirim verebilirsin
-            // alert('İzleme listesi güncellendi!');
-        }
     });
 };
+
 // --- TEKLİF VERME MANTIĞI ---
 
-// Minimum teklif miktarını hesapla (Mevcut fiyat + 10)
+// Minimum teklif miktarını artık "canlı fiyat" (currentAuctionPrice) üzerinden hesaplıyoruz!
 const minBidAmount = computed(() => {
-    if (!props.product?.auction) return 0;
-    return Number(props.product.auction.current_price) + 10;
+    return Number(currentAuctionPrice.value) + 10;
 });
 
-// Teklif Formu
 const bidForm = useForm({
     amount: minBidAmount.value || 0,
 });
 
-// Arka planda ihale fiyatı değişirse (veya teklifimiz onaylanırsa) input'u otomatik güncelle
-watch(() => props.product?.auction?.current_price, (newPrice) => {
+// Canlı fiyat her değiştiğinde, input kutusundaki varsayılan değeri de artır
+watch(currentAuctionPrice, (newPrice) => {
     if (newPrice) {
         bidForm.amount = Number(newPrice) + 10;
     }
 });
 
-// Teklifi Gönder
 const placeBid = () => {
     if (!props.product?.auction) return;
     
-    // Kullanıcı giriş yapmamışsa uyar
     if (!currentUser.value) {
         alert('Teklif verebilmek için giriş yapmalısınız.');
         return;
@@ -116,7 +141,7 @@ const placeBid = () => {
     bidForm.post(route('auctions.bid', props.product.auction.id), {
         preserveScroll: true,
         onSuccess: () => {
-            alert('Tebrikler! Teklifiniz başarıyla alındı. 🔨');
+            // alert silebiliriz, çünkü fiyat zaten anında değişecek!
         },
         onError: (errors) => {
             console.error("Teklif verilirken hata oluştu:", errors);
@@ -133,7 +158,6 @@ const placeBid = () => {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
             <div class="lg:grid lg:grid-cols-2 lg:gap-x-12">
                 
-                <!-- GÖRSELLER ALANI -->
                 <div class="space-y-4">
                     <div class="aspect-square rounded-3xl overflow-hidden bg-white border border-gray-100 shadow-sm flex items-center justify-center">
                         <img v-if="activeImage" :src="getImagePath(activeImage)" class="w-full h-full object-cover transition-all duration-500" />
@@ -150,18 +174,16 @@ const placeBid = () => {
                     </div>
                 </div>
 
-                <!-- ÜRÜN BİLGİLERİ ALANI -->
                 <div class="mt-10 lg:mt-0 space-y-8">
                     <div>
                         <nav class="flex mb-4">
                             <span class="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
                                 {{ product?.category?.name || 'Kategori Yok' }}
                             </span>
-                            <!-- FAVORİ (KALP) BUTONU -->
                             <button 
                                 @click="toggleWatchlist" 
                                 :disabled="watchlistForm.processing"
-                                class="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors"
+                                class="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors ml-4"
                             >
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
@@ -175,12 +197,11 @@ const placeBid = () => {
 
                     <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
                         
-                        <!-- AÇIK ARTIRMA MODU -->
                         <div v-if="product?.listing_type === 'auction'" class="space-y-8">
                             <div class="flex justify-between items-end">
                                 <div>
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Güncel Teklif</p>
-                                    <p class="text-5xl font-black text-gray-900 tracking-tighter">₺{{ product.auction?.current_price }}</p>
+                                    <p class="text-5xl font-black text-gray-900 tracking-tighter transition-all">₺{{ currentAuctionPrice }}</p>
                                 </div>
                                 
                                 <div class="text-right flex flex-col items-end">
@@ -189,10 +210,7 @@ const placeBid = () => {
                                 </div>
                             </div>
 
-                            <!-- Teklif Verme Formu -->
                             <div v-if="product.listing_type === 'auction'">
-                                
-                                <!-- İHALE AKTİF VE SÜRE DEVAM EDİYORSA -->
                                 <div v-if="product.auction?.status === 'active' && new Date(product.auction?.end_time) > new Date()">
                                     <p class="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Senin Teklifin</p>
                                     
@@ -201,7 +219,7 @@ const placeBid = () => {
                                             v-model="bidForm.amount" 
                                             type="number" 
                                             :min="minBidAmount"
-                                            class="flex-1 bg-gray-50 border-gray-200 rounded-2xl p-5 font-black text-xl shadow-inner focus:ring-2 focus:ring-indigo-600"
+                                            class="flex-1 bg-gray-50 border-gray-200 rounded-2xl p-5 font-black text-xl shadow-inner focus:ring-2 focus:ring-indigo-600 transition-all"
                                             placeholder="0.00"
                                             required
                                         >
@@ -218,7 +236,6 @@ const placeBid = () => {
                                     <p v-if="bidForm.errors.amount" class="text-red-500 text-xs mt-2 font-bold">{{ bidForm.errors.amount }}</p>
                                 </div>
 
-                                <!-- İHALE SONA ERDİYSE -->
                                 <div v-else class="bg-gray-100 border border-gray-200 rounded-2xl p-6 text-center">
                                     <div class="inline-flex items-center justify-center w-12 h-12 bg-gray-200 rounded-full mb-3 text-gray-500">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
@@ -228,13 +245,12 @@ const placeBid = () => {
                                     
                                     <div class="mt-4 pt-4 border-t border-gray-200">
                                         <span class="text-xs text-gray-400 uppercase font-bold">Kazanan Teklif</span>
-                                        <p class="text-2xl font-black text-indigo-600">₺{{ product.auction?.current_price }}</p>
+                                        <p class="text-2xl font-black text-indigo-600">₺{{ currentAuctionPrice }}</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- HEMEN AL MODU -->
                         <div v-else class="space-y-6">
                             <div>
                                 <p class="text-xs text-gray-400 font-bold uppercase tracking-tighter mb-1">Hemen Al Fiyatı</p>
@@ -251,24 +267,22 @@ const placeBid = () => {
                         </div>
                     </div>
 
-                    <!-- TEKLİF GEÇMİŞİ BÖLÜMÜ -->
                     <div class="mt-10 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" v-if="product?.listing_type === 'auction' && product?.auction">
                         <div class="bg-gray-50 border-b border-gray-100 px-6 py-4 flex justify-between items-center">
                             <h3 class="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
                                 <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 Teklif Geçmişi
                             </h3>
-                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">
-                                {{ product.auction.bids?.length || 0 }} Teklif
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full transition-all">
+                                {{ currentBids?.length || 0 }} Teklif
                             </span>
                         </div>
 
                         <div class="p-0">
-                            <!-- Eğer teklif varsa listele -->
-                            <ul v-if="product.auction.bids && product.auction.bids.length > 0" class="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-                                <li v-for="(bid, index) in product.auction.bids" :key="bid.id" class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                            <ul v-if="currentBids && currentBids.length > 0" class="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                                <li v-for="(bid, index) in currentBids" :key="bid.id" class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div class="flex items-center gap-3">
-                                        <div v-if="index === 0" class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm">
+                                        <div v-if="index === 0" class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 shadow-sm transition-all duration-500 scale-110">
                                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
                                         </div>
                                         <div v-else class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
@@ -280,14 +294,13 @@ const placeBid = () => {
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <p :class="['text-base font-black', index === 0 ? 'text-green-600' : 'text-gray-900']">
+                                        <p :class="['text-base font-black transition-colors', index === 0 ? 'text-green-600' : 'text-gray-900']">
                                             ₺{{ bid.amount }}
                                         </p>
                                     </div>
                                 </li>
                             </ul>
 
-                            <!-- Eğer hiç teklif yoksa -->
                             <div v-else class="px-6 py-12 text-center">
                                 <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
                                     <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
